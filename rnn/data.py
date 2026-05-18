@@ -49,8 +49,8 @@ class Vocab:
             return [self.token_to_idx.get(t, 0) for t in tokens]
         return self.token_to_idx.get(tokens, 0)
     
-def build_corpus(lines, vocab):
-    tokens = tokenize(lines)
+def build_corpus(lines, vocab, token='char'):
+    tokens = tokenize(lines, token)
     corpus = [idx for line in tokens for idx in vocab[line]]
     return corpus, vocab
 
@@ -75,3 +75,9 @@ def seq_data_iter_random(corpus, batch_size, num_steps):
         X = [get_seq(j) for j in batch_indices]
         Y = [get_seq(j + 1) for j in batch_indices]
         yield torch.tensor(X), torch.tensor(Y)
+
+def load_data_time_machine(batch_size, num_steps, token="char"):
+    lines = load_time_machine()
+    corpus, vocab = build_corpus(lines, Vocab(tokenize(lines, token)))
+    data_iter = seq_data_iter_random(corpus, batch_size, num_steps)
+    return data_iter, vocab
