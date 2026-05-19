@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import math
 from rnn.model import RNNModel
-from rnn.data import load_data_time_machine
+from rnn.data import load_data_time_machine, load_data_shakespeare_word
 
 
 def grad_clipping(params, theta):
@@ -40,20 +40,48 @@ def train_epoch(model, data_iter, loss_fn, optimizer, device, use_random_iter):
     
     return math.exp(total_loss / total_tokens)  # perplexity
 
-def train(model, batch_size, num_steps, lr, num_epochs, device):    
+def predict(model, prefix, num_predict, vocab, device):
+    state = model.begin_state(batch_size=1, device=device)
+
+    # Convert prefix words to indices
+    output = [vocab[w] for w in prefix.split()]
+
+    # Warm up the hidden state by feeding the prefix
+    for idx in output[:-1]:
+        X = torch.tensor([[idx]], device=device)
+        _, state = model(X, state)
+
+    for _ in range(num_predict):
+        X = torch.tensor([[output[-1]]], device=device)
+        y_hat, state = model(X, state)
+        next_idx = int(y_hat.argmax(dim=1).item())
+        output.append(next_idx)
+
+    return " ".join([vocab.idx_to_token[i] for i in output])
+
+def train(model, batch_size, num_steps, lr, num_epochs, device, dataset="time_machine"):
+    loaders = {
+        "time_machine": load_data_time_machine,
+        "shakespeare": load_data_shakespeare_word
+    }    
     loss_fn = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.params, lr=lr)
-    data_iter, _ = load_data_time_machine(batch_size, num_steps)
-
+    data_iter, vocab = loaders[dataset](batch_size, num_steps)
     for epoch in range(num_epochs):
         data_iter, _ = load_data_time_machine(batch_size, num_steps)
         ppl = train_epoch(model, data_iter, loss_fn, optimizer, device, use_random_iter=True)
-        if (epoch + 1) % 10 == 0:
-            print(f"Epoch {epoch+1:3d} | Perplexity {ppl:.1f}")
+        print(f"Epoch {epoch+1:3d} | Perplexity {ppl:.1f}")
+
+    # After training, show some predictions
+    test_prefixes = ['to be or not', 'the king is', 'love is']
+    for prefix in test_prefixes:
+        result = predict(model, prefix, num_predict=10, vocab=vocab, device=device)
+        print(f"\nSeed: '{prefix}'")
+        print(f"Generated: {result}")
 
 if __name__ == "__main__":
-    device     = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    _, vocab   = load_data_time_machine(batch_size=32, num_steps=35)
+    device   = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    _, vocab = load_data_shakespeare_word(batch_size=32, num_steps=35)
 
     model = RNNModel(
         vocab_size  = len(vocab),
@@ -61,4 +89,5 @@ if __name__ == "__main__":
         device      = device
     )
 
-    train(model, batch_size=32, num_steps=35, lr=1.0, num_epochs=50, device=device)
+    train(model, batch_size=32, num_steps=35, lr=1.0,
+          num_epochs=50, device=device, dataset='shakespeare')

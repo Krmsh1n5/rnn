@@ -81,3 +81,16 @@ def load_data_time_machine(batch_size, num_steps, token="char"):
     corpus, vocab = build_corpus(lines, Vocab(tokenize(lines, token)))
     data_iter = seq_data_iter_random(corpus, batch_size, num_steps)
     return data_iter, vocab
+
+def load_shakespeare():
+    with open("data/shakespeare.txt") as f:
+        lines = f.readlines()
+    return [re.sub('[^a-z]+', ' ', line.lower()) for line in lines]
+
+def load_data_shakespeare_word(batch_size, num_steps):
+    lines  = load_shakespeare()
+    tokens = tokenize(lines, token='word')
+    vocab  = Vocab(tokens, min_freq=3)
+    corpus, vocab = build_corpus(lines, vocab, token='word')
+    data_iter = seq_data_iter_random(corpus, batch_size, num_steps)
+    return data_iter, vocab
